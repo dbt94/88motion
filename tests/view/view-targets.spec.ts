@@ -32,6 +32,7 @@ interface ViewResult {
     toNames: string[]
     newcomerName: string
     newcomerCropped: boolean
+    newClipAnimated: boolean
     cards: Array<{
         id: string
         old: { delay: number; easing: string } | null
@@ -147,6 +148,9 @@ test.describe("animateView() target resolution", () => {
         expect(result.css).toMatch(
             /::view-transition-old\(box\)[^{]*\{[^}]*object-fit:\s*cover/
         )
+        // The cropped morph rounds its square clip by animating the group's
+        // border-radius (8px -> 28px) - without it the corners square mid-morph.
+        expect(result.radiusAnimated).toBe(true)
     })
 
     test(".crop(false) opts out of the default crop", async ({ page }) => {
@@ -156,6 +160,25 @@ test.describe("animateView() target resolution", () => {
 
         expect(result.error).toBeNull()
         expect(result.css).not.toMatch(/object-fit/)
+        // No crop -> no overflow: clip -> no group-radius animation needed.
+        expect(result.radiusAnimated).toBe(false)
+    })
+
+    test("repeat/type don't leak into the cropped-clip radius animation", async ({
+        page,
+    }) => {
+        await page.goto("view/view-crop-timing.html")
+        const result = await readResult(page)
+        test.skip(!result.supported, "No startViewTransition support")
+
+        // A string `type` must not throw inside the WAAPI-only NativeAnimation
+        // and drop every animation.
+        expect(result.error).toBeNull()
+        // The radius reuses the group's resolved timing, which carries no
+        // `repeat`, so it runs once - in sync with the box geometry (also once).
+        // A leaking `repeat: 1` would make the radius run twice and desync.
+        expect(result.radiusIterations).toBe(1)
+        expect(result.groupIterations).toBe(1)
     })
 
     test(".exit({ opacity: 0 }) animates from an inferred 1, not instantly", async ({
@@ -325,6 +348,25 @@ test.describe("animateView() target resolution", () => {
         // cancelled it along with the fade, overlapping pixels would darken
         // mid-transition. (vtAnims is captured for diagnosis if this fails.)
         expect(result.blendKept).toBe(true)
+    })
+
+    test("only animating .new() with a non-opacity reveal holds the old layer", async ({
+        page,
+    }) => {
+        await page.goto("view/view-reveal.html")
+        const result = await readResult(page)
+        test.skip(!result.supported, "No startViewTransition support")
+
+        expect(result.error).toBeNull()
+        // The reveal we asked for runs on the new layer...
+        expect(result.newClipAnimated).toBe(true)
+        // ...and the old layer's default crossfade fade-out is dropped, so the
+        // old page holds as a static backdrop instead of dissolving outside the
+        // clip. (Pre-fix the orphaned UA fade survives: oldOpacity is [1, 0].)
+        expect(result.oldOpacity).toHaveLength(0)
+        // The orphaned plus-lighter half is dropped too (else it flashes bright
+        // where the opaque old/new overlap inside the growing clip).
+        expect(result.blendKept).toBe(false)
     })
 
     test(".new({scale}) on a survivor animates from the live value, not a 0.85 pop", async ({

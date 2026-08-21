@@ -4,6 +4,13 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
+## [13.1.1] 2026-08-18
+
+### Fixed
+
+-   Guard animation `window` access in non-browser runtimes.
+-   `AnimatePresence`: Improved compat with React 19 strict mode.
+
 ## [13.1.0] 2026-08-10
 
 ### Added

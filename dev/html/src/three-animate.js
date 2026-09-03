@@ -1,7 +1,9 @@
-import { cancelFrame, frame } from "motion"
-import { animate } from "motion/three"
+import { animate, cancelFrame, frame } from "motion"
+import { threeEffect } from "motion/three"
 import * as THREE from "three"
 import "./gpu-adapters.css"
+
+animate.addEffect(threeEffect)
 
 const canvas = document.querySelector("canvas")
 const status = document.querySelector("#status")

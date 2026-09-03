@@ -6,6 +6,8 @@ document.querySelector("#app").innerHTML = `
     <div class="card">
         <a href="/three-animate.html">Three.js animate()</a>
         <a href="/three-effects.html">Three.js effects</a>
+        <a href="/three-tsl.html">Three.js TSL (WebGPU)</a>
         <a href="/vgpu.html">vgpu uniforms</a>
+        <a href="/vgpu-scene.html">vgpu scene</a>
     </div>
 `

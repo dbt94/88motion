@@ -4,6 +4,19 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
+## [13.2.0] 2026-unreleased
+
+### Added
+
+-   `animate.addEffect()` for registering effects that lets `animate` drive non-DOM subjects alongside DOM elements.
+-   `threeEffect` (`motion/three`) supporting Three.js objects, materials, shader uniforms, TSL uniform nodes and more.
+-   `vgpuEffect` (`motion/vgpu`) supporting shared uniforms, `Effect`/`Draw`/`Compute` bindings (`"params.time"`), scene nodes, cameras, lights, materials, orbit controls, CSS colors and vector components.
+-   `createEffect` now accepts `test`, `read` and `step` options and exposes bound motion values via `effect.get()`.
+
+### Changed
+
+-   Reduced filesize and improved performance of `spring`.
+
 ## [13.1.1] 2026-08-18
 
 ### Fixed

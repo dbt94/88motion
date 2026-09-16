@@ -24,6 +24,7 @@ import {
     ValueAnimationOptions,
 } from "./types"
 import { replaceTransitionType } from "./utils/replace-transition-type"
+import { notifyAnimationStart } from "./utils/notify-inspector"
 import { WithPromise } from "./utils/WithPromise"
 
 const percentToProgress = (percent: number) => percent / 100
@@ -96,6 +97,8 @@ export class JSAnimation<T extends number | string>
         this.play()
 
         if (options.autoplay === false) this.pause()
+
+        notifyAnimationStart(this, this.options)
     }
 
     initAnimation() {
@@ -138,7 +141,11 @@ export class JSAnimation<T extends number | string>
             keyframes = [0 as T, 100 as T]
         }
 
-        const generator = generatorFactory({ ...options, keyframes })
+        const generator = generatorFactory(
+            keyframes === options.keyframes
+                ? options
+                : { ...options, keyframes }
+        )
 
         /**
          * If we have a mirror repeat type we need to create a second generator that outputs the

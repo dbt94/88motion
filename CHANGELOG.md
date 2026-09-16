@@ -4,11 +4,23 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
-## [13.2.1] 2026-09-unreleased
+## [13.3.0] 2026-09-14
+
+### Added
+
+-   Hooks for Motion Editor.
 
 ### Changed
 
--   `springValue`/`useSpring`: Improved performance when retargeting spring.
+-   `springValue`/`useSpring`: 80% reduction in time when retargeting.
+-   `animate`: 10% smaller.
+-   `animate`: 20% reduction in startup time.
+-   `animate`: 10% reduction in per-frame JS.
+-   `frame`: Frame scheduling 10% faster.
+
+### Fixed
+
+-   `animate`: Fixed path drawing calculations.
 
 ## [13.2.0] 2026-09-03
 
@@ -22,6 +34,7 @@ Undocumented APIs should be considered internal and may change without warning.
 ### Changed
 
 -   Reduced filesize and improved performance of `spring`.
+-   `MotionValueState` no longer caches values in `latest`; effect renders read their motion values directly. `set()` drops its `useDefaultValueType` argument.
 
 ## [13.1.1] 2026-08-18
 

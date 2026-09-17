@@ -54,6 +54,34 @@ Get started with [Motion for React](https://motion.dev/docs/react).
 
 **Note:** Framer Motion is now Motion. Import from `motion/react` instead of `framer-motion`.
 
+#### View transitions
+
+`AnimateView` is available from a separate entry point and requires React and React DOM 19.3 or later. Other Motion React APIs continue to support React 18.
+
+```jsx
+import { AnimateView } from "motion/react-animate-view"
+import { startTransition, useState } from "react"
+
+function View() {
+    const [show, setShow] = useState(false)
+
+    return (
+        <>
+            <button onClick={() => startTransition(() => setShow(!show))}>
+                Toggle
+            </button>
+            {show && (
+                <AnimateView transition={{ duration: 0.4 }}>
+                    <div>Hello</div>
+                </AnimateView>
+            )}
+        </>
+    )
+}
+```
+
+Existing Motion+ users can replace `motion-plus/animate-view` imports with `motion/react-animate-view`.
+
 ### JS
 
 ```javascript
@@ -126,7 +154,7 @@ Motion drives the animations on the Cursor homepage, and is working with Cursor 
 
 ### Platinum
 
-<a href="https://linear.app"><img alt="Linear" src="https://github.com/user-attachments/assets/f9ce44b4-af28-4770-bb6e-9515b474bfb2" width="250px" height="150px"></a> <a href="https://figma.com"><img alt="Figma" src="https://github.com/user-attachments/assets/1077d0ab-4305-4a1f-81c8-d5be8c4c6717" width="250px" height="150px"></a> <a href="https://sanity.io"><img alt="Sanity" src="https://github.com/user-attachments/assets/80134088-f456-483f-8edd-940593c120ce" width="250px" height="150px"></a> <a href="https://animations.dev"><img alt="Sanity" src="https://github.com/user-attachments/assets/7c5ab87d-c7d9-44b4-9c7e-f9e6a9f3ba3b" width="250px" height="150px"></a> <a href="https://clerk.com?utm_campaign=motion"><img alt="Clerk" src="https://github.com/user-attachments/assets/16789f85-eaf4-46fb-9961-b3e66d33afbc" width="250px" height="150px"></a>
+<a href="https://linear.app"><img alt="Linear" src="https://github.com/user-attachments/assets/f9ce44b4-af28-4770-bb6e-9515b474bfb2" width="250px" height="150px"></a> <a href="https://figma.com"><img alt="Figma" src="https://github.com/user-attachments/assets/1077d0ab-4305-4a1f-81c8-d5be8c4c6717" width="250px" height="150px"></a> <a href="https://sanity.io"><img alt="Sanity" src="https://github.com/user-attachments/assets/80134088-f456-483f-8edd-940593c120ce" width="250px" height="150px"></a> <a href="https://clerk.com?utm_campaign=motion"><img alt="Clerk" src="https://github.com/user-attachments/assets/16789f85-eaf4-46fb-9961-b3e66d33afbc" width="250px" height="150px"></a>
 
 ### Gold
 

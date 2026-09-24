@@ -4,6 +4,13 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
+## [13.4.2] 2026-09-23
+
+### Fixed
+
+-   `Reorder`: Don't scale position of elements at origin `0` when `dragConstraints` changes.
+-   Unrecognised easing names no longer throw.
+
 ## [13.4.1] 2026-09-22
 
 ### Fixed

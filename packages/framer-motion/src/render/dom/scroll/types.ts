@@ -1,5 +1,3 @@
-import { EasingFunction } from "motion-utils"
-
 export interface ScrollOptions {
     source?: HTMLElement
     container?: Element
@@ -13,10 +11,7 @@ export interface ScrollOptionsWithDefaults extends ScrollOptions {
     container: Element
 }
 
-export type OnScrollProgress = (progress: number) => void
-export type OnScrollWithInfo = (progress: number, info: ScrollInfo) => void
-
-export type OnScroll = OnScrollProgress | OnScrollWithInfo
+export type OnScroll = (progress: number, info: ScrollInfo) => void
 
 export interface AxisScrollInfo {
     current: number
@@ -30,8 +25,6 @@ export interface AxisScrollInfo {
 
     targetLength: number
     containerLength: number
-    interpolatorOffsets?: number[]
-    interpolate?: EasingFunction
 }
 
 export interface ScrollInfo {
@@ -42,9 +35,9 @@ export interface ScrollInfo {
 
 export type OnScrollInfo = (info: ScrollInfo) => void
 
-export type OnScrollHandler = {
-    measure: (time: number) => void
-    notify: () => void
+export interface OnScrollHandler {
+    measure: (containerInfo: ScrollInfo) => void
+    notify: (containerInfo: ScrollInfo) => void
 }
 
 export type SupportedEdgeUnit = "px" | "vw" | "vh" | "%"

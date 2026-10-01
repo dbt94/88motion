@@ -4,6 +4,36 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
+## [13.5.0] 2026-10-01
+
+### Added
+
+-   `spring`: Now accepts negative `bounce` (`0`-`-1`) to define overdamped springs.
+
+### Changed
+
+-   `<m>`: 20% smaller.
+-   `useSpring`: 10% smaller.
+-   `scroll`/`useScroll`: Use main thread for all `offset` animations.
+
+### Fixed
+
+-   Ensure `warning` and `error` messages are cleaned from production build.
+-   Ensure values are never rendered before they've been resolved.
+
+## [13.4.7] 2026-09-30
+
+### Changed
+
+-   `scroll`/`useScroll`: More `offset`s are now hardware accelerated via `ViewTimeline`.
+
+### Fixed
+
+-   `animate`: Reduced size of Motion Studio introspection call.
+-   `useTransform`: Accelerated values now correctly clamp.
+-   `scroll`/`useScroll`: Ensure offsets work the same across the JS main thread and `ViewTimeline`.
+-   `scroll`/`useScroll`: Remove `ScrollTimeline`/`ViewTimeline` observer in favour of main-thread scroll tracking.
+
 ## [13.4.6] 2026-09-29
 
 ### Fixed

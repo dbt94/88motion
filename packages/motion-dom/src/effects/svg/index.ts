@@ -8,7 +8,7 @@ import { MotionValue } from "../../value"
 import { numberValueTypes } from "../../value/types/maps/number"
 import { addAttrValue } from "../attr"
 import { MotionValueState } from "../MotionValueState"
-import { addStyleValue, readStyleValue } from "../style"
+import { addStyleValue, originProps, readStyleValue } from "../style"
 import { createSelectorEffect } from "../utils/create-dom-effect"
 import { createEffect } from "../utils/create-effect"
 
@@ -56,8 +56,17 @@ export const addSVGValue = (
         return addAttrValue(element, state, key, value, convertAttrKey(key))
     }
 
+    /**
+     * Transforms and origins aren't CSS properties (bar `x`/`y` in some
+     * browsers), so check them by name rather than `key in element.style`.
+     */
     const handler =
-        isCSSVar(key) || key in element.style ? addStyleValue : addAttrValue
+        transformProps.has(key) ||
+        originProps.has(key) ||
+        isCSSVar(key) ||
+        key in element.style
+            ? addStyleValue
+            : addAttrValue
     return handler(element, state, key, value)
 }
 
@@ -65,10 +74,10 @@ export const addSVGValue = (
  * Reads the current value of `key` from an SVG element as the origin of
  * an animation, as the SVG VisualElement does: transforms start from
  * their defaults, CSS variables and the few CSS-only properties come from
- * computed style
- * and everything else is read from the attribute, dash-cased
- * (`strokeWidth` -> `stroke-width`) or, failing that, as written
- * (`baseFrequency`).
+ * computed style, falling back to the attribute when that's empty (e.g.
+ * the element isn't rendered), and everything else is read from the
+ * attribute, dash-cased (`strokeWidth` -> `stroke-width`) or, failing
+ * that, as written (`baseFrequency`).
  */
 export const readSVGValue = (element: SVGElement, key: string) => {
     if (transformProps.has(key)) {
@@ -76,7 +85,11 @@ export const readSVGValue = (element: SVGElement, key: string) => {
     }
 
     if (isCSSVar(key) || cssStyleProperties.includes(key)) {
-        return readStyleValue(element, key)
+        return (
+            readStyleValue(element, key) ||
+            element.getAttribute(camelToDash(key)) ||
+            0
+        )
     }
 
     key = convertAttrKey(key)

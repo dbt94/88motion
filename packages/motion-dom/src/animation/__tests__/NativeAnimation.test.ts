@@ -1,4 +1,6 @@
+import { supportsFlags } from "../../utils/supports/flags"
 import { motionValue } from "../../value"
+import { NativeAnimation } from "../NativeAnimation"
 import { NativeAnimationExtended } from "../NativeAnimationExtended"
 
 /**
@@ -62,5 +64,54 @@ describe("NativeAnimation - onfinish style commit", () => {
          * the correct value back to the element.
          */
         expect(element.style.opacity).toBe("1")
+    })
+})
+
+describe("NativeAnimation - attachTimeline", () => {
+    let mockAnimation: any
+
+    beforeEach(() => {
+        supportsFlags.scrollTimeline = true
+        mockAnimation = {
+            cancel: jest.fn(),
+            onfinish: null,
+            playbackRate: 1,
+            currentTime: 0,
+            playState: "running",
+            effect: {
+                getComputedTiming: () => ({ duration: 300 }),
+                updateTiming: jest.fn(),
+            },
+        }
+
+        Element.prototype.animate = jest
+            .fn()
+            .mockImplementation(() => mockAnimation)
+    })
+
+    afterEach(() => {
+        supportsFlags.scrollTimeline = undefined
+        ;(Element.prototype as any).animate = undefined
+        jest.restoreAllMocks()
+    })
+
+    const createAnimation = () =>
+        new NativeAnimation({
+            element: document.createElement("div"),
+            name: "opacity",
+            keyframes: [0, 1],
+            duration: 300,
+        } as any)
+
+    test("attaches the timeline and passes the WAAPI animation to onAttach", () => {
+        const timeline = { currentTime: null }
+        const onAttach = jest.fn()
+        const observe = jest.fn()
+
+        createAnimation().attachTimeline({ timeline, onAttach, observe })
+
+        expect(mockAnimation.timeline).toBe(timeline)
+        expect(onAttach).toHaveBeenCalledWith(mockAnimation)
+        expect(observe).not.toHaveBeenCalled()
     })
 })

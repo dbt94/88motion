@@ -9,15 +9,13 @@ import { frame } from "../../../frameloop/frame"
 import { frameData } from "../../../frameloop/frame-data"
 import { time } from "../../../frameloop/sync-time"
 import {
-    buildTransform,
-    translateAlias,
+    isDefaultTransform,
+    transformFunction,
 } from "../../../render/html/utils/build-transform"
 import type { ResolvedValues } from "../../../render/types"
 import { transformPropOrder } from "../../../render/utils/keys-transform"
 import { mixNumber } from "../../../utils/mix/number"
 import type { MotionValue, Owner } from "../../../value"
-import { numberValueTypes } from "../../../value/types/maps/number"
-import { getValueAsType } from "../../../value/types/utils/get-as-type"
 import { frameloopDriver } from "../../drivers/frame"
 import { DriverControls } from "../../drivers/types"
 import { keyframes as keyframesGenerator } from "../../generators/keyframes"
@@ -538,28 +536,33 @@ function createGroup(owner: TransformOwner): TransformGroup {
     }
 
     /**
-     * Build the transform at a timestamp. Unlike buildTransform, every key
-     * is written, even at its default, so each keyframe has the same list
-     * of functions and the browser interpolates them one by one.
+     * Build a transform from values in transformPropOrder. For a keyframe,
+     * every key is written, even at its default, so each keyframe has the
+     * same list of functions and the browser interpolates them one by one.
+     * As an inline style, defaults are left out, as buildTransform does.
      */
-    const compose = (timestamp: number, settled?: number) => {
+    const toTransform = (values: ResolvedValues, isStyle?: boolean) => {
         let transform = ""
-        const values = valuesAt(timestamp, settled)
         for (const key in values) {
-            transform +=
-                (translateAlias[key] || key) +
-                "(" +
-                getValueAsType(values[key], numberValueTypes[key]) +
-                ") "
+            const value = values[key]
+            if (!isStyle || !isDefaultTransform(key, value)) {
+                transform += transformFunction(key, value) + " "
+            }
         }
-        return transform || "none"
+        return (isStyle ? transform.trim() : transform) || "none"
     }
+
+    /**
+     * Build the transform at a timestamp.
+     */
+    const compose = (timestamp: number, settled?: number) =>
+        toTransform(valuesAt(timestamp, settled))
 
     /**
      * Write the transform as an inline style, as the renderer would.
      */
     const commit = (values = valuesAt()) => {
-        element.style.transform = buildTransform(values, {})
+        element.style.transform = toTransform(values, true)
     }
 
     /**
@@ -571,6 +574,20 @@ function createGroup(owner: TransformOwner): TransformGroup {
         segments.forEach(({ animation }) => animation.cancel())
         segments = []
     }
+
+    /**
+     * A WAAPI animation that add() starts by setting its startTime. Playing
+     * it first, as element.animate() does, would leave WebKit holding that
+     * play's ready time once startTime ends the play, and it uses that for
+     * the next updatePlaybackRate(), so the animation would jump.
+     */
+    const create = (
+        keyframes: PropertyIndexedKeyframes | null,
+        options: KeyframeAnimationOptions
+    ) =>
+        new Animation(
+            new KeyframeEffect(element, keyframes, options) as AnimationEffect
+        )
 
     const add = (animation: Animation, offset: number, end = Infinity) => {
         const segment: Segment = { animation, offset, end }
@@ -830,7 +847,7 @@ function createGroup(owner: TransformOwner): TransformGroup {
             keyframes = null
         }
 
-        return element.animate(keyframes, {
+        return create(keyframes, {
             ...options,
             duration: to - from,
             easing: easing || "linear",
@@ -940,9 +957,7 @@ function createGroup(owner: TransformOwner): TransformGroup {
                     (trackEnd) =>
                         trackEnd < end - 1 &&
                         add(
-                            element.animate(null, {
-                                duration: trackEnd - now,
-                            }),
+                            create(null, { duration: trackEnd - now }),
                             0,
                             trackEnd - now
                         )
@@ -1058,7 +1073,12 @@ function createGroup(owner: TransformOwner): TransformGroup {
                 animation.playbackRate = rate
                 animation.startTime = now - local / rate
             } else {
-                animation.pause()
+                /**
+                 * Hold it without pause(), whose pending pause setting
+                 * currentTime would end at once, leaving WebKit holding its
+                 * ready time (see create()).
+                 */
+                animation.startTime = null
                 animation.currentTime = local
             }
         }

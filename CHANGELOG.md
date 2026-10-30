@@ -4,6 +4,29 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
+## [14.9.0] 2026-10-30
+
+### Added
+
+-   `PresenceContext`: Added internal `keepValuesOnRemount` option for internal use.
+-   `dragConstraints`: Accepts function for internal use.
+-   `Reorder`: Keyboard accessibility now focuses just the first item, arrows move focus, arrow keys work in relation to how items are presented on-screen.
+
+## [14.8.0] 2026-10-29
+
+### Added
+
+-   `transition`: Added `mixer` option for passing custom mixer functions.
+
+### Fixed
+
+-   Only counts projection stats while `recordStats()` is running.
+-   Fix accelerated animations stuck at `initial` after remount.
+-   `drag`: 20% smaller.
+-   `m` component: 6% smaller.
+-   Keep timeline adjustments within timeline scope.
+-   `Reorder`
+
 ## [14.7.1] 2026-10-27
 
 ### Fixed

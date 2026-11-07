@@ -20,7 +20,7 @@ import { transformPropOrder } from "../../../render/utils/keys-transform"
 import { mixNumber } from "../../../utils/mix/number"
 import type { MotionValue, Owner } from "../../../value"
 import { frameloopDriver } from "../../drivers/frame"
-import { DriverControls } from "../../drivers/types"
+import { Driver, DriverControls } from "../../drivers/types"
 import { keyframes as keyframesGenerator } from "../../generators/keyframes"
 import { defaultOffset } from "../../keyframes/offsets/default"
 import { JSAnimation, round } from "../../JSAnimation"
@@ -146,8 +146,9 @@ const buildAhead = 100
 /**
  * Named easings that are the same cubic-bezier in JS and CSS.
  */
+const nativeEasings = new Set(["linear", "easeIn", "easeOut", "easeInOut"])
 const isNativeEasing = (ease: unknown): ease is "linear" =>
-    /^(linear|ease(In|Out|InOut))$/.test(ease as string)
+    nativeEasings.has(ease as string)
 
 /**
  * The last trace of each easing WAAPI can't run into linear(), with its
@@ -258,6 +259,63 @@ function canAccelerateTransform(options: ValueAnimationOptions<any>) {
     )
 }
 
+/**
+ * Starting or stopping tells the group to update its WAAPI animation.
+ * The frame loop driver is only made once the group is on the main
+ * thread, as accelerated animations never tick.
+ */
+class TransformDriver implements TransformDriverControls {
+    private driver?: DriverControls
+
+    constructor(
+        private element: Element,
+        private update: (timestamp: number) => void,
+        private makeDriver: Driver,
+        public animation?: TransformAnimation<any>
+    ) {}
+
+    get js() {
+        return (this.driver ||= this.makeDriver(this.update))
+    }
+
+    now() {
+        return this.driver || this.makeDriver !== frameloopDriver
+            ? this.js.now()
+            : frameData.isProcessing
+            ? frameData.timestamp
+            : time.now()
+    }
+
+    /**
+     * keepAlive is false when seeking. Seeking the WAAPI animation is
+     * free, but if a seek needs a rebuild and keeps happening, the group
+     * moves to the main thread.
+     */
+    start(keepAlive = true) {
+        const group = getGroup(this.element)
+        !group || group.isJS
+            ? this.js.start(keepAlive)
+            : group.schedule(false, !keepAlive)
+    }
+
+    stopJS() {
+        this.driver?.stop()
+    }
+
+    stop() {
+        this.stopJS()
+        const group = getGroup(this.element)
+        group && !group.isFinishing && group.release(this.animation!)
+    }
+}
+
+/**
+ * JSAnimation's time setter, looked up on first use rather than at module
+ * load, so the module has no top-level side effects and stays
+ * tree-shakeable in flattened bundles.
+ */
+let setTime: ((this: JSAnimation<any>, time: number) => void) | undefined
+
 export class TransformAnimation<
     T extends number | string
 > extends JSAnimation<T> {
@@ -266,7 +324,7 @@ export class TransformAnimation<
     constructor(options: ValueAnimationOptions<T>) {
         const element = getOwner(options).current
         const { driver = frameloopDriver } = options
-        let animation: TransformAnimation<T>
+        let animation: TransformAnimation<T> | undefined
 
         /**
          * Before JSAnimation replaces the type with its generator.
@@ -275,39 +333,19 @@ export class TransformAnimation<
 
         /**
          * The driver ticks on the main thread only once the group has
-         * moved there. Until then, starting or stopping tells the group to
-         * update its WAAPI animation.
+         * moved there, so its frame loop driver is made then.
          */
-        options.driver = (update) => {
-            const js = driver(update)
-
-            return {
-                js,
-                now: js.now,
-                start: (keepAlive = true) => {
-                    const group = getGroup(element)
-                    const isJS = !group || group.isJS
-
-                    /**
-                     * keepAlive is false when seeking. Seeking the WAAPI
-                     * animation is free, but if a seek needs a rebuild and
-                     * keeps happening, the group moves to the main thread.
-                     */
-                    isJS
-                        ? js.start(keepAlive)
-                        : group.schedule(false, !keepAlive)
-                },
-                stop: () => {
-                    js.stop()
-                    const group = getGroup(element)
-                    group && !group.isFinishing && group.release(animation)
-                },
-            } as TransformDriverControls
-        }
+        options.driver = (update) =>
+            new TransformDriver(element, update, driver, animation)
 
         super(options)
 
         animation = this
+        /**
+         * The first driver is made in super(), before this was assigned.
+         */
+        const firstDriver = this.driver as TransformDriver | undefined
+        firstDriver && (firstDriver.animation = this)
         this.canAccelerate = canAccelerate
 
         /**
@@ -323,12 +361,33 @@ export class TransformAnimation<
         }
     }
 
+    private offsetsOf?: unknown[]
+    private cachedOffsets?: number[]
+
+    /**
+     * Each keyframe's offset, made once for the keyframes rather than on
+     * every build.
+     */
+    offsets() {
+        const { keyframes, times } = this.options
+        if (times) return times
+        if (this.offsetsOf !== keyframes) {
+            this.offsetsOf = keyframes
+            this.cachedOffsets = defaultOffset(keyframes)
+        }
+        return this.cachedOffsets!
+    }
+
     get group() {
         return getGroup(getOwner(this.options).current)
     }
 
     get js() {
         return (this.driver as TransformDriverControls | undefined)?.js
+    }
+
+    stopJS() {
+        ;(this.driver as TransformDriver | undefined)?.stopJS()
     }
 
     get name() {
@@ -383,7 +442,7 @@ export class TransformAnimation<
      * exactly, otherwise its function, to trace.
      */
     tween(): [number, number, (string | EasingFunction)?] | undefined {
-        const { keyframes, type, times, repeat, delay = 0 } = this.options
+        const { keyframes, type, repeat, delay = 0 } = this.options
         let span = -1
 
         if (repeat || type !== keyframesGenerator || this.holdTime !== null) {
@@ -400,7 +459,7 @@ export class TransformAnimation<
         let { ease } = this.options
         if (isEasingArray(ease)) ease = ease[span]
 
-        const offsets = times || defaultOffset(keyframes)
+        const offsets = this.offsets()
         const at = (i: number) =>
             this.startTime! +
             (delay + offsets[i] * this.totalDuration) / this.speed
@@ -438,13 +497,11 @@ export class TransformAnimation<
             repeat = 0,
             repeatDelay = 0,
             repeatType,
-            times,
-            keyframes,
             type,
         } = options
         const offsets =
             (type || keyframesGenerator) === keyframesGenerator
-                ? times || defaultOffset(keyframes)
+                ? this.offsets()
                 : [0, 1]
         const start = startTime! + delay / speed
         const result: number[] = []
@@ -551,8 +608,15 @@ export class TransformAnimation<
         return super.time
     }
 
+    /**
+     * Calls JSAnimation's setter directly, as `super.time =` is a slow
+     * path in V8 and this runs for every animation of a seeked sequence.
+     */
     set time(newTime: number) {
-        super.time = newTime
+        ;(setTime ??= Object.getOwnPropertyDescriptor(
+            JSAnimation.prototype,
+            "time"
+        )!.set!).call(this, newTime)
     }
 
     /**
@@ -603,6 +667,12 @@ function createGroup(owner: TransformOwner): TransformGroup {
     let hasChurned = false
     let lastChurn = -Infinity
     let wake: ReturnType<typeof setTimeout> | undefined
+    let wakeAt = Infinity
+    /**
+     * While waiting to build a tween that starts later, how long after
+     * the last build to build it.
+     */
+    let buildAt: number | undefined
 
     const has = (key: string) => {
         for (const track of tracks) if (track.name === key) return true
@@ -680,6 +750,8 @@ function createGroup(owner: TransformOwner): TransformGroup {
      */
     const stop = (shouldCommit = true) => {
         clearTimeout(wake)
+        wakeAt = Infinity
+        buildAt = undefined
         shouldCommit && commit()
         segments.forEach(({ animation }) => cancel(animation))
         segments = []
@@ -977,7 +1049,13 @@ function createGroup(owner: TransformOwner): TransformGroup {
         options: KeyframeAnimationOptions = { fill: "both" },
         settled?: number
     ) => {
-        const bounds = moving.flatMap((track) => track.boundaries(from, to))
+        /**
+         * With an easing given, there's nothing to sample, so no need
+         * for the boundaries.
+         */
+        const bounds = nativeEasing
+            ? []
+            : moving.flatMap((track) => track.boundaries(from, to))
         const easing = nativeEasing || getEasing(moving, from, to, bounds)
         const times = easing ? [from, to] : sample(moving, from, to, bounds)
         const transform = times.map((t) => compose(t, settled))
@@ -1001,6 +1079,24 @@ function createGroup(owner: TransformOwner): TransformGroup {
             duration: to - from,
             easing: easing || "linear",
         })
+    }
+
+    /**
+     * Check whether it's time to build in this long. A check that's due
+     * sooner is kept, and checks again if it's early, so pausing and
+     * playing don't each replace a timer. One due later, after a seek or
+     * speed change while held, is replaced.
+     */
+    const wakeIn = (delay: number) => {
+        const at = time.now() + delay
+        if (at < wakeAt) {
+            clearTimeout(wake)
+            wakeAt = at
+            wake = setTimeout(() => {
+                wakeAt = Infinity
+                group.schedule(false)
+            }, delay)
+        }
     }
 
     /**
@@ -1089,10 +1185,7 @@ function createGroup(owner: TransformOwner): TransformGroup {
                      */
                     if (from - now > buildAhead) {
                         moving.forEach((track) => track.sync())
-                        wake = setTimeout(
-                            () => group.schedule(true),
-                            from - now - buildAhead
-                        )
+                        wakeIn((buildAt = from - now - buildAhead))
                         return true
                     }
 
@@ -1177,9 +1270,11 @@ function createGroup(owner: TransformOwner): TransformGroup {
     /**
      * If every animation has been paused, played, seeked or sped up
      * together since the WAAPI animation was built, do the same to it.
-     * Returns false if it needs rebuilding instead.
+     * Returns false if it needs rebuilding instead. Seeking to before a
+     * tween starts rebuilds, so a running group seeked every frame still
+     * moves to the main thread.
      */
-    const retime = (now: number) => {
+    const retime = (now: number, isSeek: boolean) => {
         let elapsed: number | undefined
         let rate = 0
 
@@ -1217,13 +1312,35 @@ function createGroup(owner: TransformOwner): TransformGroup {
         }
 
         if (elapsed === undefined) return true
-        if (!segments.length) return false
 
+        /**
+         * Waiting to build a tween that starts later. Until then the
+         * values hold where they start, so only when to build changes.
+         * Held, it has nothing on the compositor, so it can be seeked.
+         */
+        if (!segments.length) {
+            if (buildAt === undefined || (isSeek && rate)) return false
+
+            if (rate) {
+                const delay = (buildAt - elapsed) / rate
+                if (delay < 1) return false
+                wakeIn(delay)
+            }
+            return true
+        }
+
+        /**
+         * Only a tween is built to start later, and it holds its first
+         * keyframe until then, so it can be paused and played before it
+         * starts.
+         */
         for (const { offset, end, isDone } of segments) {
             const local = elapsed - offset
             if (
                 end < Infinity &&
-                (isDone ? local < end - 1 : local < 0 || local >= end)
+                (isDone
+                    ? local < end - 1
+                    : (local < 0 && (isSeek || offset <= 0)) || local >= end)
             ) {
                 return false
             }
@@ -1247,7 +1364,8 @@ function createGroup(owner: TransformOwner): TransformGroup {
                 animation.playbackRate !== rate &&
                     animation.updatePlaybackRate(rate)
             } else if (rate) {
-                animation.playbackRate = rate
+                animation.playbackRate !== rate &&
+                    (animation.playbackRate = rate)
                 animation.startTime = now - local / rate
             } else {
                 /**
@@ -1331,19 +1449,25 @@ function createGroup(owner: TransformOwner): TransformGroup {
         if (group.isJS) {
             group.isJS = false
             needsBuild = true
-            tracks.forEach((track) => track.js?.stop())
+            tracks.forEach((track) => track.stopJS())
         }
 
         const shouldBuild = needsBuild
         const churned = hasChurned
         needsBuild = hasChurned = false
 
-        if (shouldBuild || !retime(now)) {
+        if (shouldBuild || !retime(now, churned)) {
             if (churned) {
                 if (now - lastChurn < churnWindow) return group.demote()
                 lastChurn = now
             }
             if (!animate(now)) return group.demote()
+        } else if (buildAt !== undefined && !churned) {
+            /**
+             * Still waiting to build, so the values still hold where
+             * they start.
+             */
+            return
         }
 
         /**

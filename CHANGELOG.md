@@ -4,7 +4,12 @@ Motion adheres to [Semantic Versioning](http://semver.org/).
 
 Undocumented APIs should be considered internal and may change without warning.
 
-## [14.12.1] 2026-11-10
+## [14.13.0] 2026-11-12
+
+### Added
+
+-   `layout`: Animated layers now preserve spring velocity.
+-   `layout`: `mass: "auto"` setting for size-relative spring mass.
 
 ### Fixed
 

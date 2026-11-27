@@ -114,7 +114,25 @@ function makeLatestValues(
                     }
 
                     if (valueTarget !== null) {
-                        values[key] = valueTarget as AnyResolvedKeyframe
+                        /**
+                         * Opacity 0 renders as 0.001 on the server and at the
+                         * first mount. Browsers don't count content at
+                         * opacity 0 as painted, and a compositor opacity
+                         * animation never repaints it on the main thread, so
+                         * FCP and LCP would wait for the animation's end. A
+                         * motion value given in style keeps its own value.
+                         * A blocked initial animation keeps 0, as that is the
+                         * value it rests at, and Chrome rasters content at
+                         * 0.001 but not at 0.
+                         */
+                        values[key] = (
+                            key === "opacity" &&
+                            valueTarget === 0 &&
+                            !isInitialAnimationBlocked &&
+                            !motionValues.opacity
+                                ? 0.001
+                                : valueTarget
+                        ) as AnyResolvedKeyframe
                     }
                 }
                 for (const key in transitionEnd) {

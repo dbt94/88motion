@@ -363,9 +363,9 @@ test.describe("server rendering", () => {
         page.on("pageerror", (error) => errors.push(error.message))
         await page.goto("/ssr.html?test=ssr")
 
-        expect(await opacity(page, "#box")).toBe(0)
+        expect(await opacity(page, "#box")).toBe(0.001)
         expect((await matrix(page, "#box")).x).toBe(-100)
-        expect(await opacity(page, "#item")).toBe(0)
+        expect(await opacity(page, "#item")).toBe(0.001)
         expect(await page.getAttribute("#path", "stroke-dasharray")).toBe("0 1")
 
         await page.evaluate(() => (window as any).hydrate())
@@ -403,6 +403,7 @@ test.describe("regressions", () => {
         page,
     }) => {
         await open(page, "regressions")
+        // initial={false}, so it rests at 0, not the 0.001 of an enter animation
         expect(await opacity(page, "#variant-child")).toBe(0)
         // Opening has a 0.5s delay, so the child hasn't started at 0.3s.
         await call(page, "toggleVariant")
